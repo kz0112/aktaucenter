@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Ақтау – Интерактивті карта</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Leaflet карта кітапханасы -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
+  <style>
+    :root {
+      --bg: #050816;
+      --bg-soft: #0b1020;
+      --accent: #ff8a5c;
+      --accent-soft: rgba(255, 138, 92, 0.15);
+      --accent-strong: #ffb35c;
+      --text: #f5f7ff;
+      --text-soft: #a6b0d0;
+      --border-soft: rgba(255, 255, 255, 0.08);
+      --danger: #ff4b81;
+      --radius-big: 22px;
+      --radius: 14px;
+      --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.5);
+      --blur-bg: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+    }
+
+    body {
+      background: radial-gradient(circle at top, #151b3b 0, #050816 45%, #020208 100%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 18px;
+    }
+
+    .app {
+      max-width: 1300px;
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.4fr);
+      gap: 18px;
+    }
+
+    @media (max-width: 960px) {
+      .app {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto;
+      }
+    }
+
+    .panel {
+      background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.8));
+      border-radius: var(--radius-big);
+      border: 1px solid var(--border-soft);
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(var(--blur-bg));
+      padding: 18px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background:
+        radial-gradient(circle at 0 0, rgba(94, 234, 212, 0.1), transparent 60%),
+        radial-gradient(circle at 100% 0, rgba(244, 114, 182, 0.08), transparent 60%);
+      opacity: 0.9;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    header.app-header {
+      position: absolute;
+      top: 18px;
+      left: 24px;
+      right: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+
+    header h1 {
+      font-size: 1.3rem;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    header h1 span.logo-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      box-shadow: 0 0 16px rgba(255, 163, 92, 0.8);
+    }
+
+    header .tagline {
+      font-size: 0.8rem;
+      color: var(--text-soft);
+      opacity: 0.9;
+    }
+
+    .top-bar {
+      margin-top: 40px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .chip {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border-soft);
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.85));
+      font-size: 0.72rem;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chip-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(255, 138, 92, 0.7);
+    }
+
+    .search-box {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.92);
+      border-radius: 999px;
+      border: 1px solid var(--border-soft);
+      padding: 4px 10px 4px 14px;
+    }
+
+    .search-box input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+
+    .search-box input::placeholder {
+      color: var(--text-soft);
+      opacity: 0.7;
+    }
+
+    .filter-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .filter-btn {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: rgba(148, 163, 184, 0.1);
+      color: var(--text-soft);
+      font-size: 0.76rem;
+      cursor: pointer;
+      transition: all 0.18s ease-out;
+      backdrop-filter: blur(6px);
+    }
+
+    .filter-btn.active {
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      border-color: rgba(255, 176, 92, 0.5);
+      box-shadow: 0 0 0 1px rgba(255, 176, 92, 0.25);
+    }
+
+    /* MAP PANEL */
+
+    #map {
+      width: 100%;
+      height: 480px;
+      border-radius: calc(var(--radius-big) - 4px);
+      border: 1px solid var(--border-soft);
+      overflow: hidden;
+    }
+
+    .map-footer {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.8rem;
+      color: var(--text-soft);
+    }
+
+    .legend {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border-soft);
+    }
+
+    .dot-r, .dot-c, .dot-m, .dot-o {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+    }
+    .dot-r { background: #fb7185; }
+    .dot-c { background: #22c55e; }
+    .dot-m { background: #3b82f6; }
+    .dot-o { background: #eab308; }
+
+    /* RIGHT PANEL – GUIDE + INFO */
+
+    .guide-and-info {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 12px;
+      height: 100%;
+    }
+
+    .guide-card {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 16px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: calc(var(--radius-big) - 4px);
+      background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 60%),
+        radial-gradient(circle at bottom right, rgba(244, 114, 182, 0.15), transparent 60%),
+        rgba(15, 23, 42, 0.96);
+      border: 1px solid var(--border-soft);
+    }
+
+    /* Анимациялық әйел гид */
+
+    .guide-avatar-wrap {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  border-radius: 26px;
+  padding: 4px;
+  background: radial-gradient(circle at top, #f97316, #e11d48);
+  box-shadow: 0 0 25px rgba(248, 250, 252, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-avatar-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: 22px;
+  background: #020617;
+  overflow: hidden;
+  position: relative;
+}
+
+.guide-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+  transition: transform 0.3s ease-out, filter 0.3s ease-out;
+}
+
+/* Гид сөйлеп жатқанда фото сәл үлкейіп, жарығы артады */
+.guide-avatar.speaking .guide-photo {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
+
+.pulse-ring {
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  border: 2px solid rgba(248, 250, 252, 0.2);
+  animation: pulse 3s infinite ease-out;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  70% { transform: scale(1.08); opacity: 0; }
+  100% { transform: scale(1.08); opacity: 0; }
+}
+
+   
+
+    .speech-indicator {
+      position: absolute;
+      bottom: 6px;
+      right: 8px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 3px;
+    }
+
+    .speech-indicator span {
+      width: 3px;
+      border-radius: 999px;
+      background: var(--accent);
+      height: 5px;
+      opacity: 0.4;
+    }
+
+    .guide-avatar.speaking .speech-indicator span:nth-child(1) {
+      animation: bar1 0.36s infinite alternate;
+    }
+
+    .guide-avatar.speaking .speech-indicator span:nth-child(2) {
+      animation: bar2 0.36s infinite alternate;
+    }
+
+    .guide-avatar.speaking .speech-indicator span:nth-child(3) {
+      animation: bar3 0.36s infinite alternate;
+    }
+
+    @keyframes bar1 {
+      from { height: 4px; opacity: 0.5; }
+      to { height: 12px; opacity: 1; }
+    }
+    @keyframes bar2 {
+      from { height: 10px; opacity: 0.5; }
+      to { height: 4px; opacity: 1; }
+    }
+    @keyframes bar3 {
+      from { height: 6px; opacity: 0.5; }
+      to { height: 14px; opacity: 1; }
+    }
+
+    @keyframes head-bob {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+
+    @keyframes talk {
+      from { transform: scaleY(0.2); }
+      to { transform: scaleY(1); }
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.7; }
+      70% { transform: scale(1.08); opacity: 0; }
+      100% { transform: scale(1.08); opacity: 0; }
+    }
+
+    .guide-text h2 {
+      font-size: 1.02rem;
+      margin-bottom: 4px;
+    }
+
+    .guide-text p {
+      font-size: 0.86rem;
+      color: var(--text-soft);
+      line-height: 1.5;
+    }
+
+    .guide-actions {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border-radius: 999px;
+      border: none;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.18s ease-out;
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-soft);
+      border: 1px solid var(--border-soft);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f97316, #f97316 20%, #ec4899);
+      color: #0b1020;
+      border: none;
+      box-shadow: 0 0 18px rgba(249, 115, 22, 0.5);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 0 22px rgba(249, 115, 22, 0.7);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.6);
+      border-color: rgba(148, 163, 184, 0.7);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .btn-icon {
+      font-size: 0.95rem;
+    }
+
+    /* Place info card */
+
+    .info-card {
+      margin-top: 4px;
+      padding: 10px 12px;
+      border-radius: calc(var(--radius-big) - 4px);
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid var(--border-soft);
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 10px;
+      min-height: 280px;
+    }
+
+    .info-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 480px) {
+      .info-main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .info-text h3 {
+      font-size: 1.02rem;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border-soft);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-soft);
+    }
+
+    .badge.type-restaurant { border-color: #fb7185; color: #fecaca; }
+    .badge.type-cafe { border-color: #22c55e; color: #bbf7d0; }
+    .badge.type-shop { border-color: #3b82f6; color: #bfdbfe; }
+    .badge.type-other { border-color: #eab308; color: #fef9c3; }
+
+    .info-text p {
+      margin-top: 4px;
+      font-size: 0.86rem;
+      line-height: 1.55;
+      color: var(--text-soft);
+    }
+
+    .tags {
+      margin-top: 6px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tag {
+      font-size: 0.74rem;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.18);
+      color: var(--text-soft);
+    }
+
+    .info-image {
+      border-radius: 14px;
+      overflow: visible !important;
+      height: auto !important;
+      position: relative;
+      min-height: 140px;
+      background: radial-gradient(circle at top, #1f2937, #020617);
+    }
+
+    .info-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transform-origin: center;
+      transition: transform 0.4s ease-out;
+    }
+
+    .info-image::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(15, 23, 42, 0.6), transparent);
+      pointer-events: none;
+    }
+
+    .info-image:hover img {
+      transform: scale(1.06);
+    }
+
+    .info-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+  
+    .pill {
+  width: fit-content;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: rgba(15,23,42,0.85);
+  border: 1px solid rgba(148,163,184,0.3);
+  color: #cbd5f5;
+}
+
+    .places-list {
+      margin-top: 6px;
+      border-radius: 12px;
+      background: radial-gradient(circle at top left, rgba(37, 99, 235, 0.1), transparent 60%),
+        rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      max-height: 140px;
+      overflow-y: auto;
+      padding: 4px;
+    }
+
+    .places-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .places-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .places-list::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.4);
+      border-radius: 999px;
+    }
+
+    .place-item {
+      padding: 6px 8px;
+      border-radius: 9px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.14s ease-out;
+      color: var(--text-soft);
+    }
+
+    .place-item-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .place-item-meta {
+      font-size: 0.72rem;
+      opacity: 0.9;
+    }
+
+    .place-item:hover {
+      background: rgba(30, 64, 175, 0.4);
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .place-item.active {
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(244, 114, 182, 0.4));
+      color: #f9fafb;
+      box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.12);
+    }
+
+    .place-type-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      margin-right: 4px;
+    }
+
+    .place-type-dot.restaurant { background: #fb7185; }
+    .place-type-dot.cafe { background: #22c55e; }
+    .place-type-dot.shop { background: #3b82f6; }
+    .place-type-dot.other { background: #eab308; }
+
+    .place-short {
+      max-width: 220px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .place-action {
+      font-size: 0.74rem;
+      opacity: 0.9;
+    }
+
+    .pill-coords {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.72rem;
+    }
+    .thumbs {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.25s ease-out, filter 0.25s ease-out;
+}
+
+.thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.45), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.thumb:hover img {
+  transform: scale(1.06);
+  filter: brightness(1.05);
+}
+
+.thumb.active {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.7);
+}
+
+.thumb.active::after {
+  opacity: 1;
+}
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT: MAP PANEL -->
+    <section class="panel">
+      <header class="app-header">
+        <div>
+          <h1><span class="logo-dot"></span> Ақтау City Guide</h1>
+        </div>
+      </header>
+
+      <div class="top-bar">
+        <div class="chip">
+          <span class="chip-dot"></span>
+          Real-time карта &nbsp;•&nbsp; Маркерлерді басып көр
+        </div>
+        <div class="search-box">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Ортаңыздың атын жазыңыз (мысалы, Bozjyra)..."
+          />
+        </div>
+      </div>
+      <div class="filter-group">
+        <button class="filter-btn active" data-filter="all">Барлығы</button>
+        <button class="filter-btn" data-filter="restaurant">Ресторандар</button>
+        <button class="filter-btn" data-filter="cafe">Кафе</button>
+        <button class="filter-btn" data-filter="shop">Магазиндер</button>
+        <button class="filter-btn" data-filter="other">Басқалары</button>
+      </div>
+
+      <div id="map"></div>
+
+      <div class="map-footer">
+        <div class="legend">
+          <div class="legend-item">
+            <span class="dot-r"></span><span>Ресторан</span>
+          </div>
+          <div class="legend-item">
+            <span class="dot-c"></span><span>Кафе/кофейня</span>
+          </div>
+          <div class="legend-item">
+            <span class="dot-m"></span><span>Магазин</span>
+          </div>
+          <div class="legend-item">
+            <span class="dot-o"></span><span>Басқа</span>
+          </div>
+        </div>
+        <div>Картаны жылжытып, үлкейтіп/кішірейте аласыз.</div>
+      </div>
+    </section>
+
+    <!-- RIGHT: GUIDE + INFO PANEL -->
+    <section class="panel">
+      <div class="guide-and-info">
+        <!-- GUIDE CARD -->
+        <div class="guide-card">
+          <div class="guide-avatar-wrap">
+            <div class="guide-avatar-inner guide-avatar" id="guideAvatar">
+              <img
+                src="https://i.pinimg.com/originals/f3/c5/dd/f3c5dd51faa7e73381987b6a5b08a238.jpg"
+                alt="Гид фото"
+                class="guide-photo"
+              />
+              <div class="pulse-ring"></div>
+            </div>
+          </div>
+          <div class="guide-text">
+            <h2>Сәлем, мен – Ақтау гидімін!</h2>
+            <p id="guideIntro">
+              Мен сізге Bozjyra, Mash Oda, CoffeeCity сияқты сүйікті орындарды
+              картада көрсетіп, қысқаша таныстырып шығамын. Картаны не
+              тізімдегі атауларды басып көріңіз.
+            </p>
+            <div class="guide-actions">
+              <button class="btn btn-primary" id="btnPlayIntro">
+                <span class="btn-icon">▶</span>
+                Гидтің таныстыруын тыңдау
+              </button>
+              <button class="btn" id="btnStopVoice">
+                ◼ Дауысты тоқтату
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PLACE INFO -->
+        <div class="info-card">
+          <div class="info-main">
+            <div class="info-text">
+              <h3 id="placeTitle">
+                Орта таңдалмаған
+              </h3>
+              <div class="badge type-other" id="placeTypeBadge">
+                Орын таңдаңыз
+              </div>
+              <p id="placeDescription">
+                Картаның сол жақ панеліндегі маркерлерді немесе төмендегі
+                тізімнен орталықты таңдаңыз. Мен сізге қысқаша ақпарат беріп,
+                мекенжайын көрсетемін.
+              </p>
+              <div class="tags" id="placeTags"></div>
+              <div class="guide-actions" style="margin-top:10px;">
+                <button class="btn btn-primary" id="btnPlayPlace" disabled>
+                  <span class="btn-icon">🔊</span> Осы орын туралы есту
+                </button>
+                <button class="btn" id="btnFocusOnMap" disabled>
+                  🎯 Картамен фокус
+                </button>
+              </div>
+            </div>
+
+            <div class="info-image">
+              <!-- ҮЛКЕН СУРЕТ -->
+              <div class="image-main">
+                <img id="placeImage" src="" alt="Орта суреті" />
+              </div>
+            
+              <!-- МИНИ-ГАЛЕРЕЯ -->
+              <div class="thumbs" id="placeThumbs"></div>
+            
+              <!-- META -->
+              <div class="info-meta">
+                <div class="pill pill-coords" id="coordsText"></div>
+                <div class="pill" id="addressText"></div>
+              </div>
+            </div>
+            
+            
+          </div>
+
+          <!-- LIST -->
+          <div class="places-list" id="placesList">
+            <!-- JS арқылы толтырылады -->
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // ======== ДЕРЕККӨЗ: ОРТАЛЫҚТАР ТІЗІМІ ========
+    // Назар аудар: координаттарды нақтылау үшін өзіңіз өзгерте аласыз.
+    // Қазір тек визуалды демонстрация үшін шамамен қойылды (Ақтау маңы).
+
+    const places = [
+      {
+        id: "bozjyra",
+        name: "Bozjyra ресторан",
+        type: "restaurant",
+        categoryLabel: "Ресторан",
+        coords: [43.6585, 51.167], // TODO: нақты координат
+        address: "Ақтау, Bozjyra ресторан (​11а микрорайон, 1/4, Актау, Актау городская администрация. 2 этаж)",
+        description:
+          "Bozjyra ресторан – ұлттық дәстүр мен еуропалық асхананың үздік үлгілерін үйлестірген заманауи отбасылық мейрамхана. Мұнда қазақтың классикалық тағамдарымен қатар, еуропалық ас мәзірінің танымал түрлері ұсынылады. Интерьері жылы түстермен безендіріліп, қонақтарға жайлы әрі тыныш атмосфера сыйлайды.  Ресторан атауы Қазақстанның ең көркем табиғи нысандарының бірі – Бозжыра шатқалының атымен аталған. Бозжыра – Маңғыстау өңірінің символы, кеңдік пен табиғи тазалықтың белгісі. Осы атау арқылы ресторан иелері табиғатқа жақындықты, кең пейілділікті және ұлттық рухты жеткізуді мақсат еткен. ",
+        tags: ["ұлттық тағамдар", "отбасылық кешкі ас", "панорама"],
+        images: [
+          "https://avatars.mds.yandex.net/get-altay/1027861/2a000001876a5baaaa5d856e14b4b687728e/L_height",
+          "https://avatars.mds.yandex.net/get-altay/14676222/2a00000196429c49afdac2b14508ae6c8f8f/L_height",
+          "https://avatars.mds.yandex.net/get-vh/6360136/2a0000019397f09da264ef3aa06c25b13e0d/orig",
+          "https://avatars.mds.yandex.net/get-altay/4961567/2a0000019031408fdf80720eee986e2017ff/L",
+          "https://avatars.mds.yandex.net/get-altay/10578166/2a0000018d709d35d4f5e9ce6a755a3165ae/L_height",
+          "https://avatars.mds.yandex.net/get-altay/6322664/2a0000018977ca83e1470d4638ee18fdd36c/L_height",
+          "https://avatars.mds.yandex.net/get-altay/16270073/2a000001993d70d31f76fc3498987cc1ce7e/L",
+      ],
+        voiceText:
+          "Bozjyra рестораны – ұлттық және еуропалық асхананы біріктірген жайлы отбасылық орын. Ресторан атауы Маңғыстаудағы әйгілі Бозжыра шатқалынан алынған, бұл табиғи кеңдік пен ұлттық рухтың символы. Мұнда жылы атмосфера, дәмді тағамдар және достық қызмет көрсету үйлесім тапқан."
+      },
+      {
+        id: "gadim",
+        name: "Шашлыки от дяди Гадима",
+        type: "cafe",
+        categoryLabel: "Кафе-ресторан",
+        coords: [43.6578, 51.1725], // TODO
+        address: "Ақтау, Шашлыки от дяди Гадима (Актау, 8-й микрорайон, 39Б)",
+        description:
+          "Бұл орынның басты ерекшелігі – тағамның әрқашан жаңа әрі ыстық күйде ұсынылуы. Шашлықтар дәстүрлі әдіспен, табиғи көмірдің үстінде дайындалып, еттің табиғи дәмі мен жұмсақтығын толық сақтайды. Ас мәзірі қарапайым болғанымен, сапаға ерекше мән беріледі. Мәзірдің негізін түрлі еттен дайындалған шашлықтар құрайды: сиыр, қой, тауық еті және фаршталған люля-кебаб. Тағамдар классикалық маринадта әзірленіп, дәмін толық ашу үшін көмірдің үстінде қуырылады. Сонымен қатар гарнирлер, жаңа піскен көкөністер, салаттар және ыстық нан ұсынылады, бұл әр қонақтың талғамына сай таңдау жасауға мүмкіндік береді.",
+        tags: ["шашлык", "гриль", "take away"],
+        images: [
+          "https://avatars.mds.yandex.net/get-altay/11183932/2a0000019165d464c38265eae4fd38030153/L_height",
+          "https://dynamic-media-cdn.tripadvisor.com/media/photo-o/26/d1/79/ed/caption.jpg?w=900&h=500&s=1",
+          "https://s.inaktau.kz/section/catalognewsintext/upload/images/catalog/intext/000/050/940/imx03760_5d19db409dec5.jpg?t=1561976094942",
+          "https://avatars.mds.yandex.net/get-altay/15285331/2a00000195be9318f9bcd591b01d560f6292/L_height",
+          "https://static-pano.maps.yandex.ru/v1/?panoid=1378929860_785391492_23_1726769055&size=500%2C240&azimuth=57.2&tilt=10&api_key=maps&signature=Z0h4g6ALPPIE8b-aSEZ63KfAKoGrf6QyPEICfE6f1H8=",
+          "https://cachizer3.2gis.com/reviews-photos/15aa00ab-44a4-436e-97e6-cc4e8901a5a4.jpg?w=1920",
+      ], 
+        voiceText:
+          "Бұл – етті жақсы көретіндер үшін нағыз хит орын. Мұнда шашлықтар табиғи көмірдің үстінде дайындалып, шырынды әрі дәмді болып шығады. Қарапайым және жайлы атмосфера қонақтарға еркін демалуға мүмкіндік береді, ал жылдам сервис бұл орынды күнделікті ас ішуге де, достармен кездесуге де өте қолайлы етеді."
+      },
+      {
+        id: "mashoda",
+        name: "Alash Orda ресторан",
+        type: "restaurant",
+        categoryLabel: "Ресторан",
+        coords: [43.6535, 51.1605], // TODO
+        address: "Ақтау, Alash Orda ресторан (ЖК Albion​19-й микрорайон, 28)",
+        description:
+          "Стильді интерьері бар заманауи ресторан қала өмірінің динамикасын нәзік эстетикамен үйлестіре отырып, қонақтарға ерекше әсер сыйлайды. Интерьерде заманауи дизайн элементтері, жұмсақ жарық пен үйлесімді түстер қолданылып, тыныш әрі жайлы атмосфера қалыптастырылған. Терезеден ашылатын city-view көрінісі кешкі уақытта ерекше романтикалық көңіл күй тудырып, әрбір кешті есте қаларлық етеді. Авторлық мәзір шеф-аспаздың ерекше көзқарасын көрсетеді: классикалық тағамдар заманауи интерпретациямен ұсынылады, ал десерттер өзінің әсем безендірілуі мен талғампаз дәмімен ерекшеленеді. Бұл ресторан романтикалық кездесулерге, мерекелік кештерге және ерекше сәттерді атап өтуге арналған мінсіз орын болып саналады.",
+        tags: ["заманауи дизайн", "city view", "десерттер"],
+        images: [
+          "alashorda.jpg",
+          "https://avatars.mds.yandex.net/get-altay/14021521/2a00000194c813e4898df7d7331ba74f458a/L_height",
+          "https://cachizer3.2gis.com/reviews-photos/1bb5a546-3cbc-4ab7-a983-776a7df5730b.jpg",
+          "https://avatars.mds.yandex.net/get-altay/10233337/2a0000018f5915706a8ec50003f69141cc2b/L_height",
+          
+      ],
+        voiceText:
+          "Бұл – стильді интерьері бар заманауи ресторан. Терезеден ашылатын city-view көрінісі кешкі уақытта романтикалық атмосфера сыйлайды. Авторлық мәзір мен талғампаз десерттер бұл орынды ерекше кездесулер мен ұмытылмас кештер үшін мінсіз етеді."
+      },
+      {
+        id: "hti",
+        name: "ХАЕТ ресторан",
+        type: "restaurant",
+        categoryLabel: "Ресторан",
+        coords: [43.6539, 51.1733], // TODO
+        address: "Ақтау, ХАЕТ ресторан (ТЦ Астана​14-й микрорайон, 33/2​цокольный этаж)",
+        description:
+          "ХАЕТ рестораны – іскерлік кездесулер мен отбасылық кештерге бірдей қолайлы, жайлы әрі сенімді мейрамхана. Кең әрі жарық залдары қонақтарға еркін отыруға мүмкіндік береді, ал тыныш атмосфера маңызды кездесулерді де, жақын адамдармен өткізілетін кештерді де ыңғайлы етеді. Интерьері классикалық стильде безендіріліп, салтанат пен қарапайымдылық үйлесім тапқан. Ас мәзірі дәстүрлі және танымал тағамдарға негізделген. Тағамдар ұқыпты дайындалып, дәмі мен сапасына ерекше көңіл бөлінеді. Сапалы сервис пен жылы қарым-қатынас ХАЕТ ресторанын қала тұрғындары мен қонақтары жиі таңдайтын тұрақты орындардың біріне айналдырған.",
+        tags: ["іскерлік ланч", "банкеттер", "classic menu"],
+        images: [
+          "https://avatars.mds.yandex.net/get-altay/13220786/2a00000191f095c2447f56cb8fa664509fa1/L_height",
+          "https://avatars.mds.yandex.net/get-altay/13287730/2a00000191f05723e998d5a3a83abff71e3e/L_height",
+          "https://lh5.googleusercontent.com/proxy/Vp0iVbhitBMYh3ZfTU6gjLUoZeDF_BHajyrMAbgDg0ovDtqwusO4Uh1D6zM1G5XT82rqK8g16lz6KC7oUPnOz6cc6gY",
+          "https://avatars.mds.yandex.net/get-altay/14393272/2a00000192a65195116ef6cdf69af48831ab/L_height",
+          "https://cachizer2.2gis.com/reviews-photos/71c4bb89-dc73-48d6-b77f-683e664160c0.jpg?w=640",
+          "https://avatars.mds.yandex.net/get-altay/14079384/2a00000192a64c98a818aef78f9cd5098524/L_height",
+          "https://avatars.mds.yandex.net/get-altay/13287730/2a00000192a65179bab57e58a282e0705dfc/XL",
+          "https://avatars.mds.yandex.net/get-altay/16270073/2a000001993d70d31f76fc3498987cc1ce7e/L",
+          ],
+        voiceText:
+          "ХАЕТ рестораны – іскерлік кездесулерге де, отбасылық кештерге де қолайлы мейрамхана. Мұнда кең залдар, классикалық мәзір және сапалы сервис ұсынылады. Тыныш атмосферасы әрбір қонаққа жайлы демалыс сыйлайды."
+      },
+      {
+        id: "coffeecity",
+        name: "CoffeeCity",
+        type: "cafe",
+        categoryLabel: "Кофейня",
+        coords: [43.6515, 51.168], // TODO
+        address: "Ақтау, CoffeeCity кофейнясы (​ЖК Green Plaza, 17-й микрорайон, 6)",
+        description:
+          "CoffeeCity – қала ырғағын сезінуге мүмкіндік беретін заманауи кофейня. Мұнда жоғары сапалы specialty кофе түрлі әдіспен дайындалып, әрбір қонаққа хош иісі мен дәмі үйлескен сусын ұсынылады. Интерьері urban стильде безендіріліп, жарық әрі жинақы кеңістік тыныш жұмыс істеуге немесе қысқа үзіліс жасауға қолайлы. Кофейняда ноутбукпен жұмыс істеуге ыңғайлы үстелдер, розеткалар және жайлы отыратын орындар қарастырылған. Сонымен қатар шағын снектер мен жеңіл десерттер кофе ішумен тамаша үйлеседі. CoffeeCity – жұмыс пен демалысты біріктіретін, қала тұрғындары жиі таңдайтын сүйікті орындардың бірі.",
+        tags: ["кофе", "to go", "co-working mood"],
+        images: [
+          "coffecity.jpg",
+          "https://cachizer3.2gis.com/reviews-photos/d9dda883-1a47-45de-9192-5dd1561ea7b9.jpg?w=320",
+          "https://cachizer3.2gis.com/reviews-photos/aeb46d3d-884f-45e6-aefb-b11fd7a0034d.jpg?w=1920",
+          "https://cachizer1.2gis.com/reviews-photos/c779f38c-446b-4527-8910-f9bb82e9f61a.jpg",
+          "https://cachizer3.2gis.com/reviews-photos/0484cf1b-76fc-46f5-a95a-08fbe958fd9c.jpg?w=640",
+          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSqwaCBDtQLY3TKb9adknMqcyqLxGOx3ykdGw&s",
+          "https://avatars.mds.yandex.net/get-altay/16299341/2a0000019a3fd9d78046ec0a573f8fa078e3/L_height",
+          "https://avatars.mds.yandex.net/get-altay/10639454/2a0000018a937b1585c7252099d1971325c5/L_height",
+      ],
+        voiceText:
+          "CoffeeCity – қала стиліндегі заманауи кофейня. Мұнда specialty кофе, жеңіл снектер және ноутбукпен жұмыс істеуге қолайлы орта ұсынылады. Бұл – жұмыс пен демалысты қатар үйлестіруге болатын тамаша орын."
+      },
+      {
+        id: "coffeeboom",
+        name: "CoffeeBoom",
+        type: "cafe",
+        categoryLabel: "Кофейня",
+        coords: [43.6519, 51.1638], // TODO
+        address: "Ақтау, CoffeeBoom кофейнясы (​ЖК Тамшалы, 14-й микрорайон, 58)",
+        description:
+          "CoffeeBoom – заманауи форматтағы кофейня, мұнда жеңіл музыка мен жайлы атмосфера қонақтарға жағымды көңіл күй сыйлайды. Интерьері стильді әрі instagram-ға лайық безендірілген, сондықтан бұл орын фотосуретке түсуге және достармен уақытты қызықты өткізуге өте қолайлы. Авторлық сусындар CoffeeBoom-ның басты ерекшелігі болып саналады. Әр сусын ерекше дәм үйлесімімен дайындалып, кофейняға келген әр қонаққа жаңа әсер сыйлайды. Жылы қарым-қатынас пен жайлы орта бұл орынды кездесулер мен демалыс үшін сүйікті мекенге айналдырған.",
+        tags: ["авторлық сусындар", "достармен кездесу", "инста-интерьер"],
+        images: [
+          "coffyboom.jpg",
+          "https://avatars.mds.yandex.net/get-altay/15017195/2a0000019504dbbafc6313367880a677f0ea/L_height",
+          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRjhFB4673gUTFD1tG32qnP9SGHjLMv10J-sQ&s",
+          "https://avatars.mds.yandex.net/get-altay/6444937/2a0000018f5c6517bc3fc8bf895bb7c4e288/L",
+          "https://avatars.mds.yandex.net/get-altay/14021655/2a000001923efa27f79ba3ebda6b0c392afe/L_height",
+          "https://static.tildacdn.com/tild3035-3733-4761-b564-636238313139/-/resize/504x/Coffee_BOOM.jpg",
+          "https://avatars.mds.yandex.net/get-altay/14372341/2a0000019640776af98361deabb384374449/L_height",
+          "https://glovo.dhmedia.io/image/stores-glovo/stores/980e84f9ac6fd5bc222fbd98bbeb3acddfeaf0b38de3ef0efd93d87f6c3bca00?t=W3siYXV0byI6eyJxIjoibG93In19LHsicmVzaXplIjp7Im1vZGUiOiJsZml0Iiwid2lkdGgiOjYwMH19XQ==",
+      ],
+        voiceText:
+          "CoffeeBoom – жеңіл музыкасы бар, instagram-ға лайық интерьері және авторлық сусындарымен ерекшеленетін кофейня. Достармен кездесіп, уақытты көңілді өткізуге арналған тамаша орын."
+      },
+      {
+        id: "march",
+        name: "March магазин",
+        type: "shop",
+        categoryLabel: "Магазин",
+        coords: [43.6544, 51.1691], // TODO
+        address: "Ақтау, March дүкені (13-й микрорайон, 14​1 этаж)",
+        description:
+          "March – күнделікті өмірге арналған casual стильдегі киімдер мен аксессуарларды ұсынатын заманауи дүкен. Мұнда жайлылық пен сән үйлесім тапқан, әр маусымға лайықты жаңа коллекциялар тұрақты түрде жаңартылып отырады. Киімдер қала өмірінің қарқынына сай, күнделікті киюге ыңғайлы болып таңдалған. Дүкенде ерлер мен әйелдерге арналған түрлі үлгідегі киімдер, аксессуарлар және стильді толықтыратын ұсақ бөлшектер ұсынылады. Маусымдық жеңілдіктер мен арнайы ұсыныстар March дүкенін сапалы әрі қолжетімді сәнді бағалайтындар үшін тиімді таңдау етеді.",
+        tags: ["киім", "аксессуарлар", "casual стиль"],
+        images: [
+          "mama.jpg",
+          "blala.jpg",
+          "mamasita.jpg",
+          "https://avatars.mds.yandex.net/get-altay/6548191/2a0000018e1d27b9316f3f28429c9a2f8086/L_height",
+          "https://cachizer3.2gis.com/reviews-photos/5547d28f-0b18-4217-b88c-59f29819d5ac.jpg?w=1920",
+          "https://avatars.mds.yandex.net/get-altay/11420721/2a0000018e1d0f6b9fa32c9520c11800d762/L_height",
+          "https://avatars.mds.yandex.net/get-altay/16379675/2a000001997535a8710f4048720e0ccc3d99/L_height",
+          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTK6dXyQCdqnUJZaoQw24nGycbUklLlHdpEvQ&s",
+      ],
+        voiceText:
+          "March – күнделікті casual стильдегі киімдер мен аксессуарлар дүкені. Заманауи коллекциялар мен маусымдық жеңілдіктер бұл орынды қолжетімді әрі стильді таңдауға айналдырады."
+      },
+      {
+        id: "kidspharm",
+        name: "Kids Pharm магазин",
+        type: "shop",
+        categoryLabel: "Магазин",
+        coords: [43.6532, 51.1652], // TODO
+        address: "Ақтау, Kids Pharm (​ЖК Ханшайым, 19-й микрорайон, 20)",
+        description:
+          "Kids Pharm – балаларға арналған тауарлар мен дәріхана форматындағы өнімдерді бір жерде ұсынатын мамандандырылған дүкен. Мұнда сәбилер мен балаларға арналған күтім құралдары, витаминдер және денсаулыққа қажетті өнімдер мұқият таңдалып, қауіпсіздік пен сапаға ерекше көңіл бөлінеді. Дүкен ассортименті балалардың күнделікті қажеттіліктерін толық қамтиды: гигиеналық құралдар, пайдалы қоспалар және дамытушы ойыншықтар. Жас ата-аналар үшін ыңғайлы формат пен сенімді өнімдер Kids Pharm дүкенін отбасылар жиі таңдайтын пайдалы орынға айналдырады.",
+        tags: ["балалар", "дәріхана", "витаминдер"],
+        images: [
+          "https://avatars.mds.yandex.net/get-altay/13325287/2a0000018f5db2de2fed8bce83f2b28970b5/orig",
+          "https://cachizer1.2gis.com/reviews-photos/b01732c0-5de5-4fc7-980d-c11e5b4d6e15.jpg?w=1920",
+          "kids.jpg",
+          "https://cachizer2.2gis.com/reviews-photos/ea7230c1-5043-440e-b18b-107afcf3dc93.jpg",
+      ],
+        voiceText:
+          "Kids Pharm – балаларға арналған тауарлар мен дәріхана өнімдері үйлескен дүкен. Мұнда күтім құралдары, витаминдер және дамытушы ойыншықтар ұсынылады, бұл жас ата-аналар үшін өте ыңғайлы таңдау."
+      },
+      {
+        id: "richsize",
+        name: "Rich Size магазин",
+        type: "shop",
+        categoryLabel: "Магазин",
+        coords: [43.6562, 51.1618], // TODO
+        address: "Ақтау, Rich Size дүкені (ЖК Zaman, проспект Исатая Тайманова, 48)",
+        description:
+          "Rich Size – үлкен өлшемдегі сәнді киімдерге маманданған заманауи дүкен. Мұнда әртүрлі дене бітіміне сай келетін, ыңғайлылық пен стильді қатар ұсынатын киімдер топтастырылған. Коллекциялар күнделікті киюге де, ерекше жағдайларға да лайықты етіп таңдалған. Дүкендегі ассортимент сапалы маталар мен дұрыс пішімді крояға негізделген, бұл киімнің денеге ыңғайлы отыруын қамтамасыз етеді. Заманауи дизайн мен жайлылықты бағалайтындар үшін Rich Size дүкені сенімді әрі қолайлы таңдау болып саналады.",
+        tags: ["plus size", "fashion", "комфорт"],
+        images: [
+          "https://cachizer1.2gis.com/reviews-photos/d231e881-a7a6-4a2b-af67-412a337eadec.jpg?w=1920",
+          "https://cachizer2.2gis.com/reviews-photos/e83c740e-e7cd-4482-bacd-bd632dd2dcb6.jpg?w=1920",
+          "https://cachizer3.2gis.com/reviews-photos/1ce471d6-f306-43f1-b967-76b271374f1a.jpg",
+          "https://i6.photo.2gis.com/main/branch/196/70000001061124742/common",
+          "https://ir.ozone.ru/s3/multimedia-n/c1000/6828798731.jpg",
+          "https://cachizer2.2gis.com/reviews-photos/307256ab-3331-4c1d-a67d-881eb0c5c872.jpg?w=1920",
+
+      ],
+        voiceText:
+          "Rich Size – үлкен өлшемдегі сәнді киімдер дүкені. Мұнда комфорт пен стильді біріктіретін заманауи коллекциялар ұсынылады."
+      },
+      {
+        id: "urbo",
+        name: "URBO",
+        type: "cafe",
+        categoryLabel: "Кофейня",
+        coords: [43.6592, 51.1639], // TODO
+        address: "Ақтау, URBO (​ЖК Albion​19-й микрорайон, 28)",
+        description:
+          "URBO – қала өмірінің заманауи ырғағын бейнелейтін урбан-кеңістік, мұнда демалыс, сауда және әлеуметтік қарым-қатынас бір жерде тоғысқан. Кеңістік заманауи архитектуралық стильде жасалып, ашық әрі жайлы атмосферасымен ерекшеленеді. Мұнда күнделікті серуендеуге де, бос уақытты тиімді өткізуге де барлық жағдай қарастырылған. URBO орталығында түрлі дүкендер, кофейнялар және демалыс аймақтары орналасқан. Бұл орын достармен кездесуге, кофе ішіп әңгімелесуге немесе жай ғана қала атмосферасын сезінуге өте қолайлы. Lifestyle форматындағы URBO – жастар мен қала тұрғындары жиі таңдайтын заманауи қоғамдық кеңістік.",
+        tags: ["urban space", "lifestyle", "event place"],
+        images: [
+          
+        "https://avatars.mds.yandex.net/get-altay/14635327/2a00000197a65a64489f06c461d1a2e582b4/L_height",
+          "https://cachizer1.2gis.com/reviews-photos/9cd7d1b1-9e88-4e8b-a78d-fefcb7f708c8.jpg?w=1920",
+          "https://cachizer3.2gis.com/reviews-photos/85478f71-5f5c-4416-8d54-309f4a8626f6.jpg?w=320",
+          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSYx6ESh62bKS81ATb7YibBbLeKgH2TNa5a9w&s",
+          "https://cachizer1.2gis.com/reviews-photos/0e90c48c-3d4f-4577-882b-a53c47c658bb.jpg",
+          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRTMVmn1-7QUVyZ9dkM_KpMJWRIYwQjFpQ_IA&s",
+          "https://avatars.mds.yandex.net/get-altay/11408080/2a00000193d10bd8fd72f0ef370a5ee28f9e/L_height",
+      ],
+        voiceText:
+          "URBO – дүкендер, кофейнялар және демалыс аймақтары біріктірілген заманауи урбан-кеңістік. Бұл – қала атмосферасын сезініп, бос уақытты жайлы өткізетін lifestyle орталық."
+      },
+      
+      {
+  id: "merhaba",
+  name: "Merhaba",
+  type: "other",
+  categoryLabel: "Орталық",
+  coords: [43.6524, 51.1702], // TODO
+  address: "Ақтау, Merhaba (БЦ Nomad​16-й микрорайон, 6)",
+  description:
+    "Merhaba – шығыс мәдениетінің жылы рухын сезінуге мүмкіндік беретін жайлы орталық. Интерьерінде шығыс стиліне тән әшекейлер мен жұмсақ түстер қолданылып, қонақтарға тыныш әрі еркін атмосфера қалыптастырады. Бұл орын күнделікті күйбеңнен алыстап, жайлы демалуға арналған. Орталықта дәмді тағамдар мен хош иісті шай түрлері ұсынылады. Жылы қарым-қатынас пен тыныш орта Merhaba орталығын достармен кездесіп, әңгімелесуге немесе жеке отырып тынығып алуға қолайлы мекенге айналдырған.",
+  tags: ["шығыс стилі", "шай", "дәмді ас"],
+  images: [
+    "https://avatars.mds.yandex.net/get-altay/13594632/2a000001941644a346fc3eeb497dd488983f/orig",
+    "https://avatars.mds.yandex.net/get-altay/12813969/2a0000018e1450fe3c2417444e455ec6f40b/L_height",
+    "https://avatars.mds.yandex.net/get-altay/14329771/2a000001968c1801220ee79835b7d161d7d2/L_height",
+    "https://avatars.mds.yandex.net/get-eda/14667178/507d207ae2d243e48d626165d34c57ad/M_height",
+    "https://avatars.mds.yandex.net/get-altay/15586709/2a00000198a9f30b61d024fae6e6516c9c07/L_height",
+    "https://halalguide.me/media/imgs/places/2023/04/21/1_13.webp",
+    "https://cachizer1.2gis.com/reviews-photos/896b3a8e-90f3-4692-9c27-375f933dfb20.jpg?w=1920",
+    "https://cachizer3.2gis.com/reviews-photos/c2385811-8fba-4a9a-a2c4-dc2fbb45bcec.jpg",
+  ],
+  voiceText:
+    "Merhaba – шығыс стилі сезілетін жылы атмосферасы бар орталық. Мұнда дәмді тағам мен хош иісті шай ішіп, тыныш демалуға болады."
+},
+
+      {
+        id: "shogy",
+        name: "shogy",
+        type: "shop",
+        categoryLabel: "Магазин",
+        coords: [43.6571, 51.1765], // TODO
+        address: "Ақтау, shogy (​17-й микрорайон, 33/6)",
+        description:
+          "shogy – жастарға арналған заманауи демалыс нүктесі, мұнда еркін атмосфера мен белсенді өмір салты үйлесім тапқан. Кеңістік заманауи стильде безендіріліп, музыка мен жарық элементтері көңілді орта қалыптастырады. Бұл орын достармен жиналып, уақытты қызықты әрі сергек өткізуге бағытталған. Орталықта түрлі ойын-сауық форматтары, музыкалық бағдарламалар және жастарға арналған іс-шаралар ұйымдастырылады. Қозғалысқа толы орта мен еркін қарым-қатынас shogy орталығын қала жастары жиі таңдайтын сүйікті демалыс орнына айналдырған.",
+        tags: ["жастар", "музыка", "fun"],
+        images: [
+          "image.png",
+          "image2.png",
+          "image3.png",
+          "image4.png",
+          "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQBzY0eebAof3M7CjbkA5sYrcVIwnmWBkt07w&s",
+          "https://avatars.mds.yandex.net/get-altay/14014133/2a00000191bef363be7608be275af1689e96/L_height",
+          "https://frankfurt.apollo.olxcdn.com/v1/files/uemrbf6drxu8-KZ/image;s=461x1000",
+          "https://i1.photo.2gis.com/images/profile/30258560050559288_1483_1920x.jpg",
+          
+      ],
+        voiceText:
+          "shogy – жастарға арналған демалыс нүктесі. Мұнда музыка, ойын-сауық және бос уақытты көңілді өткізуге арналған заманауи формат ұсынылады."
+      }
+    ];
+
+    // ======== КӨМЕКШІ ФУНКЦИЯЛАР ========
+
+    const map = L.map("map", {
+      zoomControl: true,
+      scrollWheelZoom: true
+    }).setView([43.653, 51.167], 13); // Ақтау маңайы
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const markers = new Map();
+
+    function typeColor(type) {
+      switch (type) {
+        case "restaurant":
+          return "#fb7185";
+        case "cafe":
+          return "#22c55e";
+        case "shop":
+          return "#3b82f6";
+        default:
+          return "#eab308";
+      }
+    }
+
+    function createMarker(place) {
+      const icon = L.divIcon({
+        className: "",
+        html: `
+          <div style="
+            width:20px;height:20px;border-radius:999px;
+            background:${typeColor(place.type)};
+            border:2px solid #0f172a;
+            box-shadow:0 0 12px rgba(15,23,42,0.9);
+          "></div>
+        `,
+        iconSize: [20, 20]
+      });
+
+      const m = L.marker(place.coords, { icon }).addTo(map);
+      m.on("click", () => selectPlace(place.id, { center: true }));
+      markers.set(place.id, m);
+    }
+
+    places.forEach(createMarker);
+
+    // DOM элементтері
+    const placeTitle = document.getElementById("placeTitle");
+    const placeTypeBadge = document.getElementById("placeTypeBadge");
+    const placeDescription = document.getElementById("placeDescription");
+    const placeTags = document.getElementById("placeTags");
+    const placeImage = document.getElementById("placeImage");
+    const coordsText = document.getElementById("coordsText");
+    const addressText = document.getElementById("addressText");
+    const placesList = document.getElementById("placesList");
+    const btnPlayPlace = document.getElementById("btnPlayPlace");
+    const btnFocusOnMap = document.getElementById("btnFocusOnMap");
+    const searchInput = document.getElementById("searchInput");
+    const filterButtons = document.querySelectorAll(".filter-btn");
+    const guideAvatar = document.getElementById("guideAvatar");
+    const btnPlayIntro = document.getElementById("btnPlayIntro");
+    const btnStopVoice = document.getElementById("btnStopVoice");
+    const guideIntro = document.getElementById("guideIntro");
+
+    let activePlaceId = null;
+    let currentFilter = "all";
+
+    // ======== ТІЗІМДІ САЛУ ========
+    function renderPlacesList() {
+      const query = searchInput.value.toLowerCase().trim();
+
+      placesList.innerHTML = "";
+
+      const filtered = places.filter((p) => {
+        const matchesFilter =
+          currentFilter === "all" ? true : p.type === currentFilter;
+        const matchesSearch = query
+          ? p.name.toLowerCase().includes(query)
+          : true;
+        return matchesFilter && matchesSearch;
+      });
+
+      if (!filtered.length) {
+        const div = document.createElement("div");
+        div.style.padding = "8px";
+        div.style.fontSize = "0.82rem";
+        div.style.color = "var(--text-soft)";
+        div.textContent = "Сіздің сұранысыңыз бойынша орын табылмады.";
+        placesList.appendChild(div);
+        return;
+      }
+
+      filtered.forEach((place) => {
+        const item = document.createElement("div");
+        item.className =
+          "place-item" + (place.id === activePlaceId ? " active" : "");
+        item.dataset.id = place.id;
+
+        const main = document.createElement("div");
+        main.className = "place-item-main";
+
+        const titleRow = document.createElement("div");
+        titleRow.style.display = "flex";
+        titleRow.style.alignItems = "center";
+
+        const dot = document.createElement("span");
+        dot.className =
+          "place-type-dot " +
+          (place.type === "restaurant"
+            ? "restaurant"
+            : place.type === "cafe"
+            ? "cafe"
+            : place.type === "shop"
+            ? "shop"
+            : "other");
+
+        const name = document.createElement("span");
+        name.className = "place-short";
+        name.textContent = place.name;
+
+        titleRow.appendChild(dot);
+        titleRow.appendChild(name);
+
+        const meta = document.createElement("div");
+        meta.className = "place-item-meta";
+        meta.textContent = place.categoryLabel;
+
+        main.appendChild(titleRow);
+        main.appendChild(meta);
+
+        const action = document.createElement("div");
+        action.className = "place-action";
+        action.textContent = "Толығырақ ▶";
+
+        item.appendChild(main);
+        item.appendChild(action);
+
+        item.addEventListener("click", () => selectPlace(place.id, { center: true }));
+
+        placesList.appendChild(item);
+      });
+    }
+
+    renderPlacesList();
+
+    // ======== ДАУЫС ФУНКЦИЯЛАРЫ ========
+    function stopSpeaking() {
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+      guideAvatar.classList.remove("speaking");
+    }
+
+    function speak(text) {
+      if (!("speechSynthesis" in window)) {
+        console.warn("SpeechSynthesis қолжетімсіз.");
+        return;
+      }
+      stopSpeaking();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      // Қазақ дауысы жоқ болса, орыс/ағылшын дауысына жұрнақ болады
+      const voices = window.speechSynthesis.getVoices();
+      const kkVoice =
+        voices.find((v) => v.lang.startsWith("kk")) ||
+        voices.find((v) => v.lang.startsWith("ru")) ||
+        voices.find((v) => v.lang.startsWith("en")) ||
+        null;
+      if (kkVoice) utterance.voice = kkVoice;
+
+      utterance.onstart = () => {
+        guideAvatar.classList.add("speaking");
+      };
+      utterance.onend = () => {
+        guideAvatar.classList.remove("speaking");
+      };
+      utterance.onerror = () => {
+        guideAvatar.classList.remove("speaking");
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+   // ======== ОРТАЛЫҚТЫ ТАҢДАУ ========
+function selectPlace(id, options = {}) {
+  const place = places.find((p) => p.id === id);
+  if (!place) return;
+
+  activePlaceId = id;
+
+  // Атауы мен типі
+  placeTitle.textContent = place.name;
+  placeTypeBadge.textContent = place.categoryLabel;
+
+  placeTypeBadge.className =
+    "badge " +
+    (place.type === "restaurant"
+      ? "type-restaurant"
+      : place.type === "cafe"
+      ? "type-cafe"
+      : place.type === "shop"
+      ? "type-shop"
+      : "type-other");
+
+  // Сипаттамасы
+  placeDescription.textContent = place.description;
+
+  // Тегтер
+  placeTags.innerHTML = "";
+  place.tags.forEach((t) => {
+    const span = document.createElement("span");
+    span.className = "tag";
+    span.textContent = t;
+    placeTags.appendChild(span);
+  });
+
+  // ====== ФОТОЛАР (бірнеше сурет) ======
+  // place.images массиві болса – соны қолданамыз,
+  // жоқ болса, ескі place.image өрісін бір элементті массивке айналдырамыз.
+  const images =
+    Array.isArray(place.images) && place.images.length
+      ? place.images
+      : place.image
+      ? [place.image]
+      : [];
+
+  // Негізгі сурет
+  if (images.length > 0) {
+    placeImage.src = images[0];
+  } else {
+    placeImage.src =
+      "https://via.placeholder.com/480x320?text=No+Image";
+  }
+
+  // Мини-галерея (төмендегі кішкентай фотолар)
+  if (placeThumbs) {
+    placeThumbs.innerHTML = "";
+
+    images.forEach((url, index) => {
+      const thumb = document.createElement("div");
+      thumb.className = "thumb" + (index === 0 ? " active" : "");
+
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = `${place.name} фото ${index + 1}`;
+
+      thumb.appendChild(img);
+
+      thumb.addEventListener("click", () => {
+        // Негізгі суретті ауыстыру
+        placeImage.src = url;
+        // Актив класын жаңарту
+        document
+          .querySelectorAll(".thumb")
+          .forEach((t) => t.classList.remove("active"));
+        thumb.classList.add("active");
+      });
+
+      placeThumbs.appendChild(thumb);
+    });
+  }
+
+  // Координаттар мен адрес
+  coordsText.textContent = `Координаттар: ${place.coords[0].toFixed(
+    4
+  )}, ${place.coords[1].toFixed(4)}`;
+  addressText.textContent = `Мекенжайы: ${place.address}`;
+
+  // Батырмаларды белсендіру
+  btnPlayPlace.disabled = false;
+  btnFocusOnMap.disabled = false;
+
+  // Тізімді қайта салу, active класс жаңарту үшін
+  renderPlacesList();
+
+  // Маркерге фокус
+  if (options.center) {
+    map.setView(place.coords, 15, { animate: true });
+    const marker = markers.get(place.id);
+    if (marker) {
+      marker.openPopup();
+    }
+  }
+}
+
+    // ======== ОҚИҒАЛАР ========
+
+    btnPlayPlace.addEventListener("click", () => {
+      const place = places.find((p) => p.id === activePlaceId);
+      if (!place) return;
+      speak(place.voiceText);
+    });
+
+    btnFocusOnMap.addEventListener("click", () => {
+      const place = places.find((p) => p.id === activePlaceId);
+      if (!place) return;
+      map.setView(place.coords, 15, { animate: true });
+    });
+
+    searchInput.addEventListener("input", () => {
+      renderPlacesList();
+    });
+
+    filterButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        filterButtons.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentFilter = btn.dataset.filter;
+        renderPlacesList();
+      });
+    });
+
+    btnPlayIntro.addEventListener("click", () => {
+      const introText =
+        "Сәлеметсіз бе! Бұл – Ақтау қаласының интерактивті картасы. " +
+        "Мұнда Bozjyra, Mash Oda, CoffeeCity, CoffeeBoom, March және басқа да танымал орталықтар белгіленген. " +
+        "Картадағы маркерді немесе тізімдегі атауларды басып, әр орын туралы қысқаша ақпаратты тыңдай аласыз.";
+      speak(introText);
+    });
+
+    btnStopVoice.addEventListener("click", () => {
+      stopSpeaking();
+    });
+
+    // Кейбір браузерлерде дауыстар бірден жүктелмейді, сондықтан тізімді бір рет шақырамыз
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        // бір рет шақырылып кетсін
+      };
+    }
+
+    // Бет жүктелгенде қысқа ғана текст көрсетіп қоямыз (авто-ойнатусыз)
+    guideIntro.textContent =
+      "Картаны еркін жылжытып, масштабтап, төмендегі тізімнен немесе маркерлерден қалаған орталықты таңдаңыз. " +
+      "Әр орын туралы мәтінді оқып шығуға немесе дауыспен тыңдауға болады.";
+  </script>
+</body>
+</html>
